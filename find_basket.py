@@ -4,7 +4,7 @@ import cv2.aruco as aruco
 import time
 from picamera.array import PiRGBArray
 from picamera import PiCamera
- 
+
 
 
 
