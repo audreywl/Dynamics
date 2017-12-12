@@ -14,7 +14,7 @@ class Detector(object):
         self.camera = PiCamera()
         self.camera.resolution = (640, 480)
         self.camera.framerate = 32
-        self.cap = PiRGBArray(camera, size=(640, 480))
+        self.cap = PiRGBArray(self.camera, size=(640, 480))
         # allow the camera to warmup
         time.sleep(0.1)
         self.dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
@@ -35,6 +35,7 @@ class Detector(object):
 
     def update_calibration(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        self.debug_img = gray
         # Find the chess board corners
         ret, corners = cv2.findChessboardCorners(gray, (7,6),None)
 
@@ -46,12 +47,13 @@ class Detector(object):
             self.imgpoints.append(corners2)
 
             # Draw and display the corners
-            # img = cv2.drawChessboardCorners(img, (7,6), corners2,ret)
+            self.debug_img = cv2.drawChessboardCorners(gray, (7,6), corners2,ret)
             # cv2.imshow('img',img)
-            # cv2.waitKey(500)
+        self.cap.truncate(0)
 
-    def finish_calibration(self):
-        _, self.calibration_params[0], self.calibration_params[1], self.calibration_params[2], self.calibration_params[3] = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+    def finish_calibration(self, frame):
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        _, self.calibration_params[0], self.calibration_params[1], self.calibration_params[2], self.calibration_params[3] = cv2.calibrateCamera(self.objpoints, self.imgpoints, gray.shape[::-1],None,None)
 
 
     def update(self, frame):
@@ -60,7 +62,7 @@ class Detector(object):
 
         corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, self.dict, parameters=self.ar_params)
 
-        aruco.estimatePoseSingleMarkers(corners, self.markerLength, self.calibration_params[0], self.calibration_params[1], self.calibration_params[2], self.calibration_params[3])
+        aruco.estimatePoseSingleMarkers(corners, self.markerLength, self.calibration_params[0], self.calibration_params[1])
 
         self.debug_img = aruco.drawDetectedMarkers(gray, corners, ids)
 
@@ -75,14 +77,19 @@ class Detector(object):
 
 if __name__ == '__main__':
     calibrate = True
-    prime_detector = Detector(0, True);
+    prime_detector = Detector(calibrate=True);
     if calibrate:
         print 'running calibration'
-        while len(prime_detector.imgpoints)<5:
-            for frame in prime_detector.camera.capture_continuous(prime_detector.cap, format="bgr", use_video_port=True):
-                image = frame.array
-                prime_detector.update_calibration(image)
-                prime_detector.finish_calibration()
+        for frame in prime_detector.camera.capture_continuous(prime_detector.cap, format="bgr", use_video_port=True):
+            image = frame.array
+            prime_detector.update_calibration(image)
+            cv2.imshow('debug',prime_detector.debug_img)
+            print len(prime_detector.imgpoints)
+            if len(prime_detector.imgpoints)>4:
+                break
+            time.sleep(.03)
+            cv2.waitKey(30)
+        prime_detector.finish_calibration(image)
         print 'calibration complete'
 
     for frame in prime_detector.camera.capture_continuous(prime_detector.cap, format="bgr", use_video_port=True):
