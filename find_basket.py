@@ -18,6 +18,7 @@ def Lazy_Susan(tvecs):
 class PWMAdjuster(object):
     def __init__(self):
         self.aimtable = np.genfromtxt('aimtable.csv', delimiter = ',', missing_values='NaN', skip_header=1)
+        wiringpi.wiringPiSetupGpio()
         # set #18 to be a PWM output
         wiringpi.pinMode(18, wiringpi.GPIO.PWM_OUTPUT)
         wiringpi.pinMode(13, wiringpi.GPIO.PWM_OUTPUT)
@@ -30,7 +31,9 @@ class PWMAdjuster(object):
         self.susan_current_pos = 150
         self.winch_current_pos = 50
         wiringpi.pwmWrite(18, self.susan_current_pos)
+        time.sleep(10)
         wiringpi.pwmWrite(13, self.winch_current_pos)
+        time.sleep(10)
 
     def adjust_susan(self, angle):
         """angle is in radians, current_pos in ms"""
@@ -44,7 +47,7 @@ class PWMAdjuster(object):
 
     def adjust_winch(self, dist):
         armlen = 17.375
-        dist = round((dist/armlen)*7, 0)
+        dist = int(round((dist/armlen)*7, 0))
         angle = self.aimtable[0,dist]
         angle = math.radians(42.7-angle)
         length = math.sqrt(134.5-132.7*math.cos(angle))
@@ -172,8 +175,9 @@ if __name__ == '__main__':
         prime_detector.finish_calibration(image)
         print 'calibration complete'
     turn=1
-    while abs(turn)>.075:
+    while abs(turn)>.1:
         turn, distance = find_pose(prime_detector)
         print turn
         adjustor.adjust_susan(turn)
     adjustor.adjust_winch(distance)
+    print 'ready to fire'
