@@ -9,7 +9,8 @@ from picamera import PiCamera
 def Lazy_Susan(tvecs):
     camera_offset = 3
     tvecs[0] = tvecs[0] + camera_offset
-    angle_adjust = np.arctan([tvecs[0], tvecs[2]])
+    angle_adjust = np.arctan([tvecs[0,0,0], tvecs[0,0,2]])
+    return angle_adjust
 
 
 class Detector(object):
@@ -27,7 +28,7 @@ class Detector(object):
         self.markerLength = .75
         self.aimtable = np.genfromtxt('aimtable.csv', delimiter = ',', missing_values='NaN', skip_header=1)
         #self.test_marker = aruco.drawMarker(self.dict, 23, 700)
-        self.markerPose = []
+        self.markerPose = [np.full((1,3), np.nan),np.full((1,3), np.nan)]
         if calibrate:
             # termination criteria
             self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -126,6 +127,7 @@ if __name__ == '__main__':
             cv2.waitKey(30)
         prime_detector.finish_calibration(image)
         print 'calibration complete'
+    turn=1
     while turn>.05:
         turn = find_pose(prime_detector)
         print turn
