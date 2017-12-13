@@ -19,7 +19,8 @@ class Detector(object):
         time.sleep(0.1)
         self.dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
         self.ar_params = aruco.DetectorParameters_create()
-        self.markerLength = 7
+        self.markerLength = 1
+        self.aimtable = numpy.genfromtxt('aimtable.csv', delimiter = ',', missing_values='NaN', skip_header=1)
         #self.test_marker = aruco.drawMarker(self.dict, 23, 700)
         if calibrate or not calibration_params:
             # termination criteria
@@ -62,9 +63,13 @@ class Detector(object):
 
         corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, self.dict, parameters=self.ar_params)
 
-        aruco.estimatePoseSingleMarkers(corners, self.markerLength, self.calibration_params[0], self.calibration_params[1])
+        markers = aruco.drawDetectedMarkers(gray, corners, ids)
 
-        self.debug_img = aruco.drawDetectedMarkers(gray, corners, ids)
+        rvecs, tvecs = aruco.estimatePoseSingleMarkers(corners, self.markerLength, self.calibration_params[0], self.calibration_params[1])
+
+        self.debug_img = aruco.drawAxis(markers, self.calibration_params[0], self.calibration_params[1], rvecs, tvecs, 1)
+
+
 
         # clear the stream in preparation for the next frame
         self.cap.truncate(0)
