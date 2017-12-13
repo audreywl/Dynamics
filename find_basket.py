@@ -32,24 +32,28 @@ class PWMAdjuster(object):
         wiringpi.pwmWrite(18, self.susan_current_pos)
         wiringpi.pwmWrite(13, self.winch_current_pos)
 
-    def adjust_susan(angle):
+    def adjust_susan(self, angle):
         """angle is in radians, current_pos in ms"""
         ms = angle*78.8644
         ms = 5* round(ms/5, 0)
-        self.susan_current_pos += ms
+        self.susan_current_pos = int(self.susan_current_pos+ms)
+        print self.susan_current_pos
         wiringpi.pwmWrite(18, self.susan_current_pos)
+        time.sleep(10)
+        
 
-    def adjust_winch(dist):
+    def adjust_winch(self, dist):
         armlen = 17.375
         dist = round((dist/armlen)*7, 0)
-        angle = self.aimtable([0,dist])
+        angle = self.aimtable[0,dist]
         angle = math.radians(42.7-angle)
         length = math.sqrt(134.5-132.7*math.cos(angle))
         servo_angle = length/.6875
         ms = angle*78.8644
         ms = 5* round(ms/5, 0)
-        self.winch_current_pos = self.winch_current_pos + ms
+        self.winch_current_pos = int(self.winch_current_pos+ms)
         wiringpi.pwmWrite(13, self.winch_current_pos)
+        time.sleep(20)
 
 
 class Detector(object):
@@ -64,7 +68,7 @@ class Detector(object):
         time.sleep(0.1)
         self.dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
         self.ar_params = aruco.DetectorParameters_create()
-        self.markerLength = .75
+        self.markerLength = 6
 
         #self.test_marker = aruco.drawMarker(self.dict, 23, 700)
         self.markerPose = [np.full((1,3), np.nan),np.full((1,3), np.nan)]
@@ -147,7 +151,7 @@ def find_pose(detector, debug_video=True):
             cv2.waitKey(30)
         if np.allclose(detector.markerPose[-1], detector.markerPose[-2], atol=.5):
             detector.kill_video()
-            return Lazy_Susan(detector.markerPose[-1])
+            return (Lazy_Susan(detector.markerPose[-1]), detector.markerPose[-1][0,0,2])
 
 
 if __name__ == '__main__':
@@ -168,7 +172,8 @@ if __name__ == '__main__':
         prime_detector.finish_calibration(image)
         print 'calibration complete'
     turn=1
-    while turn>.05:
+    while abs(turn)>.075:
         turn, distance = find_pose(prime_detector)
+        print turn
         adjustor.adjust_susan(turn)
     adjustor.adjust_winch(distance)
