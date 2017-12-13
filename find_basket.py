@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import cv2.aruco as aruco
 import time
+import pickle
 from picamera.array import PiRGBArray
 from picamera import PiCamera
 
@@ -9,7 +10,7 @@ from picamera import PiCamera
 
 class Detector(object):
     """wrapper to hold all the image processing, contour finding operations"""
-    def __init__(self, calibrate=False, calibration_params=None):
+    def __init__(self, calibrate=False):
         # initialize the camera and grab a reference to the raw camera capture
         self.camera = PiCamera()
         self.camera.resolution = (640, 480)
@@ -19,10 +20,10 @@ class Detector(object):
         time.sleep(0.1)
         self.dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
         self.ar_params = aruco.DetectorParameters_create()
-        self.markerLength = 1
-        self.aimtable = numpy.genfromtxt('aimtable.csv', delimiter = ',', missing_values='NaN', skip_header=1)
+        self.markerLength = .75
+        self.aimtable = np.genfromtxt('aimtable.csv', delimiter = ',', missing_values='NaN', skip_header=1)
         #self.test_marker = aruco.drawMarker(self.dict, 23, 700)
-        if calibrate or not calibration_params:
+        if calibrate:
             # termination criteria
             self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
             # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
@@ -33,6 +34,9 @@ class Detector(object):
             self.objpoints = [] # 3d point in real world space
             self.imgpoints = [] # 2d points in image plane.
             self.calibration_params = [None, None, None, None]
+        else:
+            with open('pookle.p', 'r') as f:
+                self.calibration_params = pickle.load(f)
 
     def update_calibration(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -55,6 +59,8 @@ class Detector(object):
     def finish_calibration(self, frame):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         _, self.calibration_params[0], self.calibration_params[1], self.calibration_params[2], self.calibration_params[3] = cv2.calibrateCamera(self.objpoints, self.imgpoints, gray.shape[::-1],None,None)
+        with open('pookle.p', 'w') as f:
+            pickle.dump(self.calibration_params, f)
 
 
     def update(self, frame):
@@ -65,9 +71,14 @@ class Detector(object):
 
         markers = aruco.drawDetectedMarkers(gray, corners, ids)
 
-        rvecs, tvecs = aruco.estimatePoseSingleMarkers(corners, self.markerLength, self.calibration_params[0], self.calibration_params[1])
+        rvecs, tvecs,_ = aruco.estimatePoseSingleMarkers(corners, self.markerLength, self.calibration_params[0], self.calibration_params[1])
 
-        self.debug_img = aruco.drawAxis(markers, self.calibration_params[0], self.calibration_params[1], rvecs, tvecs, 1)
+        if rvecs is not None and tvecs is not None:
+            print rvecs
+            print tvecs
+            self.debug_img = aruco.drawAxis(markers, self.calibration_params[0], self.calibration_params[1], rvecs, tvecs, 1)
+        else:
+            self.debug_img = markers
 
 
 
@@ -81,8 +92,8 @@ class Detector(object):
         cv2.destroyAllWindows()
 
 if __name__ == '__main__':
-    calibrate = True
-    prime_detector = Detector(calibrate=True);
+    calibrate = False
+    prime_detector = Detector(calibrate=calibrate);
     if calibrate:
         print 'running calibration'
         for frame in prime_detector.camera.capture_continuous(prime_detector.cap, format="bgr", use_video_port=True):
