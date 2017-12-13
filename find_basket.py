@@ -6,10 +6,14 @@ import pickle
 from picamera.array import PiRGBArray
 from picamera import PiCamera
 
+def Lazy_Susan(tvecs):
+    camera_offset = 3
+    tvecs[0] = tvecs[0] + camera_offset
+    angle_adjust = np.arctan([tvecs[0], tvecs[2]])
 
 
 class Detector(object):
-    """wrapper to hold all the image processing, contour finding operations"""
+    """wrapper to hold all the image processing, AR tag operations"""
     def __init__(self, calibrate=False):
         # initialize the camera and grab a reference to the raw camera capture
         self.camera = PiCamera()
@@ -23,6 +27,7 @@ class Detector(object):
         self.markerLength = .75
         self.aimtable = np.genfromtxt('aimtable.csv', delimiter = ',', missing_values='NaN', skip_header=1)
         #self.test_marker = aruco.drawMarker(self.dict, 23, 700)
+        self.markerPose = []
         if calibrate:
             # termination criteria
             self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -77,6 +82,7 @@ class Detector(object):
             print rvecs
             print tvecs
             self.debug_img = aruco.drawAxis(markers, self.calibration_params[0], self.calibration_params[1], rvecs, tvecs, 1)
+            self.markerPose.append(tvecs)
         else:
             self.debug_img = markers
 
@@ -88,8 +94,21 @@ class Detector(object):
 
     def kill_video(self):
         """When everything done, release the capture"""
-        self.cap.release()
+        self.cap.truncate(0)
         cv2.destroyAllWindows()
+
+def find_pose(detector, debug_video=True):
+    for frame in detector.camera.capture_continuous(detector.cap, format="bgr", use_video_port=True):
+        image = frame.array
+        detector.update(image)
+        if debug_video:
+            cv2.imshow('debug',detector.debug_img)
+            time.sleep(.03)
+            cv2.waitKey(30)
+        if np.allclose(detector.markerPose[-1], detector.markerPose[-2], atol=.5):
+            detector.kill_video()
+            return Lazy_Susan(detector.markerPose[-1])
+
 
 if __name__ == '__main__':
     calibrate = False
@@ -107,10 +126,6 @@ if __name__ == '__main__':
             cv2.waitKey(30)
         prime_detector.finish_calibration(image)
         print 'calibration complete'
-
-    for frame in prime_detector.camera.capture_continuous(prime_detector.cap, format="bgr", use_video_port=True):
-        image = frame.array
-        prime_detector.update(image)
-        cv2.imshow('debug',prime_detector.debug_img)
-        time.sleep(.03)
-        cv2.waitKey(30)
+    while turn>.05:
+        turn = find_pose(prime_detector)
+        print turn
