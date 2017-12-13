@@ -5,12 +5,51 @@ import time
 import pickle
 from picamera.array import PiRGBArray
 from picamera import PiCamera
+import time
+import wiringpi
+import math
 
 def Lazy_Susan(tvecs):
     camera_offset = 3
     tvecs[0] = tvecs[0] + camera_offset
-    angle_adjust = np.arctan([tvecs[0,0,0], tvecs[0,0,2]])
+    angle_adjust = np.arctan([tvecs[0,0,0]/tvecs[0,0,2]])
     return angle_adjust
+
+class PWMAdjuster(object):
+    def __init__(self):
+        self.aimtable = np.genfromtxt('aimtable.csv', delimiter = ',', missing_values='NaN', skip_header=1)
+        # set #18 to be a PWM output
+        wiringpi.pinMode(18, wiringpi.GPIO.PWM_OUTPUT)
+        wiringpi.pinMode(13, wiringpi.GPIO.PWM_OUTPUT)
+        # set the PWM mode to milliseconds stype
+        wiringpi.pwmSetMode(wiringpi.GPIO.PWM_MODE_MS)
+
+        # divide down clock
+        wiringpi.pwmSetClock(192)
+        wiringpi.pwmSetRange(2000)
+        self.susan_current_pos = 150
+        self.winch_current_pos = 50
+        wiringpi.pwmWrite(18, self.susan_current_pos)
+        wiringpi.pwmWrite(13, self.winch_current_pos)
+
+    def adjust_susan(angle):
+        """angle is in radians, current_pos in ms"""
+        ms = angle*78.8644
+        ms = 5* round(ms/5, 0)
+        self.susan_current_pos += ms
+        wiringpi.pwmWrite(18, self.susan_current_pos)
+
+    def adjust_winch(dist):
+        armlen = 17.375
+        dist = round((dist/armlen)*7, 0)
+        angle = self.aimtable([0,dist])
+        angle = math.radians(42.7-angle)
+        length = math.sqrt(134.5-132.7*math.cos(angle))
+        servo_angle = length/.6875
+        ms = angle*78.8644
+        ms = 5* round(ms/5, 0)
+        self.winch_current_pos = self.winch_current_pos + ms
+        wiringpi.pwmWrite(13, self.winch_current_pos)
 
 
 class Detector(object):
@@ -26,7 +65,7 @@ class Detector(object):
         self.dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
         self.ar_params = aruco.DetectorParameters_create()
         self.markerLength = .75
-        self.aimtable = np.genfromtxt('aimtable.csv', delimiter = ',', missing_values='NaN', skip_header=1)
+
         #self.test_marker = aruco.drawMarker(self.dict, 23, 700)
         self.markerPose = [np.full((1,3), np.nan),np.full((1,3), np.nan)]
         if calibrate:
@@ -113,7 +152,8 @@ def find_pose(detector, debug_video=True):
 
 if __name__ == '__main__':
     calibrate = False
-    prime_detector = Detector(calibrate=calibrate);
+    prime_detector = Detector(calibrate=calibrate)
+    adjustor = PWMAdjuster()
     if calibrate:
         print 'running calibration'
         for frame in prime_detector.camera.capture_continuous(prime_detector.cap, format="bgr", use_video_port=True):
@@ -129,5 +169,6 @@ if __name__ == '__main__':
         print 'calibration complete'
     turn=1
     while turn>.05:
-        turn = find_pose(prime_detector)
-        print turn
+        turn, distance = find_pose(prime_detector)
+        adjustor.adjust_susan(turn)
+    adjustor.adjust_winch(distance)
