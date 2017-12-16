@@ -43,12 +43,13 @@ class PWMAdjuster(object):
         print self.susan_current_pos
         wiringpi.pwmWrite(18, self.susan_current_pos)
         time.sleep(10)
-        
 
-    def adjust_winch(self, dist):
+
+    def adjust_winch(self, dist, height):
         armlen = 17.375
         dist = int(round((dist/armlen)*7, 0))
-        angle = self.aimtable[0,dist]
+        height = int(round(height/armlen)*59/4,0)
+        angle = self.aimtable[height,dist]
         angle = math.radians(42.7-angle)
         length = math.sqrt(134.5-132.7*math.cos(angle))
         servo_angle = length/.6875
@@ -154,7 +155,7 @@ def find_pose(detector, debug_video=True):
             cv2.waitKey(30)
         if np.allclose(detector.markerPose[-1], detector.markerPose[-2], atol=.5):
             detector.kill_video()
-            return (Lazy_Susan(detector.markerPose[-1]), detector.markerPose[-1][0,0,2])
+            return (Lazy_Susan(detector.markerPose[-1]), detector.markerPose[-1][0,0,2], detector.markerPose[-1][0,0,1])
 
 
 if __name__ == '__main__':
@@ -176,8 +177,8 @@ if __name__ == '__main__':
         print 'calibration complete'
     turn=1
     while abs(turn)>.1:
-        turn, distance = find_pose(prime_detector)
+        turn, distance, height = find_pose(prime_detector)
         print turn
         adjustor.adjust_susan(turn)
-    adjustor.adjust_winch(distance)
+    adjustor.adjust_winch(distance, height)
     print 'ready to fire'
