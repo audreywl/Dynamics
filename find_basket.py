@@ -168,7 +168,7 @@ if __name__ == '__main__':
     if calibrate:
         print 'running calibration'
         for frame in prime_detector.camera.capture_continuous(prime_detector.cap, format="bgr", use_video_port=True):
-            image = frame.array
+            image = cv2.flip(frame.array, 0)
             prime_detector.update_calibration(image)
             cv2.imshow('debug',prime_detector.debug_img)
             print len(prime_detector.imgpoints)
