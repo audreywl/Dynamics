@@ -49,11 +49,12 @@ class PWMAdjuster(object):
         armlen = 17.375
         dist = int(round((dist/armlen)*7, 0))
         angle = self.aimtable[0,dist]
-        angle = math.radians(42.7-angle)
-        length = math.sqrt(134.5-132.7*math.cos(angle))
-        servo_angle = length/.6875
-        ms = angle*78.8644
+        print angle
+        angle = math.radians(angle)
+        print angle
+        ms = angle*(200/.279)
         ms = 5* round(ms/5, 0)
+        print ms
         self.winch_current_pos = int(self.winch_current_pos+ms)
         wiringpi.pwmWrite(13, self.winch_current_pos)
         time.sleep(20)
@@ -135,6 +136,7 @@ class Detector(object):
 
 
 
+
         # clear the stream in preparation for the next frame
         self.cap.truncate(0)
 
@@ -179,5 +181,5 @@ if __name__ == '__main__':
         turn, distance = find_pose(prime_detector)
         print turn
         adjustor.adjust_susan(turn)
-    adjustor.adjust_winch(distance)
+    adjustor.adjust_winch(distance+14)
     print 'ready to fire'
